@@ -96,6 +96,42 @@ ls -la | clip
 grep "important" logfile.txt | clip
 ```
 
+## Companion Utilities
+
+The `clip` tool comes with two companion utilities that provide simpler clipboard operations:
+
+### xc - Copy to Clipboard
+
+A minimal utility to copy standard input to the clipboard.
+
+#### Usage
+
+```bash
+echo "Hello World" | xc         # Copy text to clipboard
+cat file.txt | xc               # Copy file contents to clipboard
+xc                              # Read from stdin (type text, press Ctrl+D when done)
+```
+
+#### Description
+
+`xc` is a simplified version of `clip` that focuses solely on copying standard input to the clipboard without any file format detection or conversion. It's perfect for quick copy operations when you don't need the additional features of `clip`.
+
+### xo - Output Clipboard Contents
+
+A utility to output the current contents of the clipboard to standard output.
+
+#### Usage
+
+```bash
+xo                              # Print clipboard contents
+xo > file.txt                   # Save clipboard contents to a file
+xo | grep "search term"         # Search clipboard contents
+```
+
+#### Description
+
+`xo` complements `clip` and `xc` by allowing you to retrieve and manipulate the content currently stored in your clipboard.
+
 ## Error Handling
 
 The script will exit with an error message if:
