@@ -1,0 +1,100 @@
+#!/usr/bin/env bash
+#
+# clip: Copy text or PDF contents to the system clipboard.
+#
+# Scenarios:
+#   1) No arguments + data on stdin => read, detect MIME, convert if needed, copy.
+#   2) Multiple files => replicate "head -n -0 file1 file2 ..." style headers.
+#      For each file, detect if PDF or text, convert or copy, then append to temp.
+#   3) Error on unsupported MIME types (images, binary, etc.).
+#
+# Usage:
+#   clip                (then provide data via stdin)
+#   clip file1 [file2 ... fileN]
+#   cat file.pdf | clip
+#
+set -euo pipefail
+
+# Create a single temp file to accumulate all final output
+ACCUMULATED="$(mktemp /tmp/clip.XXXXXX)"
+
+cleanup() {
+  rm -f "$ACCUMULATED"
+}
+trap cleanup EXIT
+
+copy_to_clipboard() {
+  # Finally, copy everything to clipboard once
+  xclip -selection clipboard < "$ACCUMULATED"
+}
+
+# Function to handle a single file (either a real file or a temp-file read from stdin)
+process_file() {
+  local file_path="$1"
+
+  # Detect MIME type
+  local mime_type
+  mime_type="$(file --mime-type -b "$file_path")"
+
+  case "$mime_type" in
+    application/pdf)
+      # Convert PDF to text and append to ACCUMULATED
+      pdftotext "$file_path" - >> "$ACCUMULATED"
+      ;;
+    text/*)
+      # Append text as-is
+      cat "$file_path" >> "$ACCUMULATED"
+      ;;
+    *)
+      # Unsupported format
+      echo "Error: unsupported file type '$mime_type' for '$file_path'." >&2
+      exit 1
+      ;;
+  esac
+}
+
+############################
+# Main logic starts here. #
+############################
+
+# 1) If no arguments AND we're not connected to a terminal on stdin, read from stdin
+#    Otherwise, treat all positional parameters as file arguments.
+if [ $# -eq 0 ]; then
+  # Check if data is available on stdin
+  if ! [ -t 0 ]; then
+    # We have data from stdin
+    TEMP_STDIN="$(mktemp /tmp/clip-stdin.XXXXXX)"
+    cat - > "$TEMP_STDIN"
+
+    # "Header" for stdin to mimic head -n -0 style labeling
+    # (You can change this label if you like)
+    echo "==> stdin <==" >> "$ACCUMULATED"
+
+    process_file "$TEMP_STDIN"
+    rm -f "$TEMP_STDIN"
+
+    copy_to_clipboard
+    exit 0
+  else
+    # No args, no stdin => usage error
+    echo "Usage: $0 [file1 file2 ...] or pipe data via stdin."
+    exit 1
+  fi
+else
+  # 2) We have one or more files on the command line
+  for f in "$@"; do
+    if [ ! -f "$f" ]; then
+      echo "Error: '$f' does not exist." >&2
+      exit 1
+    fi
+
+    # Print a header like head does
+    echo "==> $f <==" >> "$ACCUMULATED"
+    process_file "$f"
+    echo "" >> "$ACCUMULATED"  # optional blank line after each file
+  done
+
+  # Finally, copy once
+  copy_to_clipboard
+  exit 0
+fi
